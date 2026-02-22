@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PrivacyLens — Audio PII Scanner</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0a0c;--surface:#111116;--surface2:#1a1a22;--surface3:#22222e;
+  --border:#2a2a38;--border-glow:#3a3a5a;
+  --text:#e8e8f0;--text-dim:#8888a0;--text-muted:#555568;
+  --accent:#00e5a0;--accent-dim:#00e5a033;--accent-glow:#00e5a066;
+  --danger:#ff4466;--danger-dim:#ff446633;
+  --warn:#ffaa22;--warn-dim:#ffaa2233;
+  --blue:#4488ff;--blue-dim:#4488ff33;
+  --purple:#aa66ff;--purple-dim:#aa66ff33;
+}
+html{font-size:15px}
+body{background:var(--bg);color:var(--text);font-family:'Outfit',sans-serif;min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;background:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");opacity:0.03}
+body::after{content:'';position:fixed;inset:0;z-index:9998;pointer-events:none;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.08) 2px,rgba(0,0,0,0.08) 4px)}
+.header{padding:24px 40px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);position:relative}
+.header::after{content:'';position:absolute;bottom:-1px;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent-glow),transparent)}
+.logo{display:flex;align-items:center;gap:14px}
+.logo-icon{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#00b880);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:var(--bg);box-shadow:0 0 20px var(--accent-dim)}
+.logo-text{font-weight:800;font-size:1.4rem;letter-spacing:-0.5px}
+.logo-text span{color:var(--accent)}
+.header-right{display:flex;align-items:center;gap:16px}
+.header-badge{font-family:'JetBrains Mono',monospace;font-size:0.7rem;color:var(--accent);background:var(--accent-dim);padding:4px 10px;border-radius:20px;border:1px solid var(--accent-glow);letter-spacing:1px}
+.nav-link{font-size:0.85rem;color:var(--text-dim);text-decoration:none;padding:6px 14px;border-radius:8px;border:1px solid var(--border);transition:all 0.2s}
+.nav-link:hover{color:var(--text);border-color:var(--accent-glow)}
+.app{max-width:1200px;margin:0 auto;padding:40px}
+
+/* Upload */
+.upload-zone{border:2px dashed var(--border);border-radius:16px;padding:60px 40px;text-align:center;transition:all 0.3s ease;cursor:pointer;position:relative;overflow:hidden;background:var(--surface)}
+.upload-zone:hover,.upload-zone.dragover{border-color:var(--purple);background:var(--purple-dim);box-shadow:0 0 40px var(--purple-dim)}
+.upload-icon{width:72px;height:72px;margin:0 auto 20px;border-radius:50%;background:var(--surface2);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:28px;transition:all 0.3s}
+.upload-zone:hover .upload-icon{border-color:var(--purple);box-shadow:0 0 20px var(--purple-dim);transform:translateY(-4px)}
+.upload-title{font-size:1.3rem;font-weight:600;margin-bottom:8px}
+.upload-sub{color:var(--text-dim);font-size:0.9rem}
+.upload-sub span{color:var(--purple);text-decoration:underline;cursor:pointer}
+input[type="file"]{display:none}
+.file-chip{display:inline-flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 16px;margin-top:16px;font-family:'JetBrains Mono',monospace;font-size:0.8rem}
+.file-chip .x{cursor:pointer;color:var(--text-muted);font-size:1.1rem;transition:color 0.2s}
+.file-chip .x:hover{color:var(--danger)}
+.instruction-bar{margin-top:20px;display:flex;gap:12px;align-items:stretch;opacity:0;transform:translateY(10px);transition:all 0.4s ease}
+.instruction-bar.visible{opacity:1;transform:translateY(0)}
+.instruction-input{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 18px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:0.85rem;outline:none;transition:border-color 0.2s}
+.instruction-input:focus{border-color:var(--purple)}
+.instruction-input::placeholder{color:var(--text-muted)}
+.btn-scan{background:linear-gradient(135deg,var(--purple),#8844dd);color:#fff;border:none;border-radius:12px;padding:14px 28px;font-family:'Outfit',sans-serif;font-weight:700;font-size:0.95rem;cursor:pointer;transition:all 0.2s;white-space:nowrap;box-shadow:0 4px 20px var(--purple-dim)}
+.btn-scan:hover{transform:translateY(-2px);box-shadow:0 6px 30px rgba(170,102,255,0.4)}
+
+/* Pipeline */
+@keyframes fadeIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.processing{display:none;margin-top:32px}
+.processing.active{display:block;animation:fadeIn 0.5s ease}
+.pipeline{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:32px}
+.pipeline-step{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;transition:all 0.4s ease;position:relative;overflow:hidden}
+.pipeline-step::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--border);transition:all 0.4s}
+.pipeline-step.active::before{background:var(--purple);box-shadow:0 0 10px rgba(170,102,255,0.6)}
+.pipeline-step.done::before{background:var(--accent)}
+.pipeline-step.active{border-color:rgba(170,102,255,0.4);box-shadow:0 0 20px var(--purple-dim)}
+.step-num{font-family:'JetBrains Mono',monospace;font-size:0.65rem;color:var(--text-muted);letter-spacing:2px;margin-bottom:6px}
+.step-icon{font-size:1.6rem;margin-bottom:6px}
+.step-label{font-size:0.8rem;font-weight:600;color:var(--text-dim)}
+.pipeline-step.active .step-label{color:var(--text)}
+.pipeline-step.done .step-label{color:var(--accent)}
+.step-stat{font-family:'JetBrains Mono',monospace;font-size:0.75rem;color:var(--accent);margin-top:6px;display:none}
+.pipeline-step.done .step-stat{display:block}
+.scan-bar{height:2px;background:linear-gradient(90deg,transparent,var(--purple),transparent);position:absolute;bottom:0;left:0;right:0;opacity:0}
+.pipeline-step.active .scan-bar{opacity:1;animation:scan 1.5s ease-in-out infinite}
+@keyframes scan{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+
+/* FG Badge */
+.fg-badge{display:inline-flex;align-items:center;gap:6px;font-family:'JetBrains Mono',monospace;font-size:0.7rem;padding:4px 10px;border-radius:6px;background:var(--purple-dim);color:var(--purple);border:1px solid rgba(170,102,255,0.3);margin-bottom:16px}
+
+/* Log */
+.log-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:24px;max-height:160px;overflow-y:auto}
+.log-panel::-webkit-scrollbar{width:6px}
+.log-panel::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.log-entry{font-family:'JetBrains Mono',monospace;font-size:0.75rem;color:var(--text-dim);padding:3px 0;border-bottom:1px solid #ffffff06}
+
+/* Results */
+.results{display:none;margin-top:32px}
+.results.active{display:block;animation:fadeIn 0.6s ease}
+.results-title{font-size:1.5rem;font-weight:800;letter-spacing:-0.5px;margin-bottom:24px}
+.results-title span{color:var(--accent)}
+
+/* Risk banner */
+.risk-banner{padding:18px 24px;border-radius:14px;margin-bottom:24px;display:flex;align-items:center;gap:16px;font-weight:600}
+.risk-banner.high{background:var(--danger-dim);border:1px solid var(--danger);color:var(--danger)}
+.risk-banner.medium{background:var(--warn-dim);border:1px solid var(--warn);color:var(--warn)}
+.risk-banner.low{background:var(--accent-dim);border:1px solid var(--accent);color:var(--accent)}
+.risk-banner.none{background:var(--surface);border:1px solid var(--border);color:var(--text-dim)}
+.risk-icon{font-size:1.8rem}
+.risk-text{flex:1}
+.risk-level{font-size:1.1rem;text-transform:uppercase;letter-spacing:1px}
+.risk-reason{font-size:0.85rem;font-weight:400;opacity:0.8;margin-top:2px}
+
+/* Stats row */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;position:relative;overflow:hidden}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.stat-card.pii-count::before{background:var(--danger)}
+.stat-card.segments::before{background:var(--blue)}
+.stat-card.fg-calls::before{background:var(--purple)}
+.stat-card.device::before{background:var(--accent)}
+.stat-label{font-size:0.7rem;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;font-family:'JetBrains Mono',monospace;margin-bottom:6px}
+.stat-value{font-size:1.8rem;font-weight:800;font-family:'JetBrains Mono',monospace}
+.stat-card.pii-count .stat-value{color:var(--danger)}
+.stat-card.segments .stat-value{color:var(--blue)}
+.stat-card.fg-calls .stat-value{color:var(--purple)}
+.stat-card.device .stat-value{color:var(--accent)}
+
+/* Transcript */
+.section-title{font-size:0.75rem;color:var(--text-muted);letter-spacing:2px;text-transform:uppercase;font-family:'JetBrains Mono',monospace;margin-bottom:12px}
+.transcript-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;max-height:300px;overflow-y:auto;margin-bottom:28px}
+.transcript-panel::-webkit-scrollbar{width:6px}
+.transcript-panel::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.transcript-line{display:flex;gap:12px;padding:6px 0;border-bottom:1px solid #ffffff06;font-size:0.85rem}
+.transcript-time{font-family:'JetBrains Mono',monospace;font-size:0.75rem;color:var(--purple);min-width:50px;padding-top:2px}
+.transcript-text{flex:1;color:var(--text-dim);line-height:1.5}
+.transcript-text .pii-highlight{background:var(--danger-dim);color:var(--danger);padding:1px 4px;border-radius:3px;font-weight:600}
+
+/* Findings table */
+.findings-table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:28px}
+.findings-table{width:100%;border-collapse:collapse}
+.findings-table th{font-family:'JetBrains Mono',monospace;font-size:0.7rem;color:var(--text-muted);letter-spacing:1px;text-transform:uppercase;text-align:left;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--surface2)}
+.findings-table td{font-family:'JetBrains Mono',monospace;font-size:0.8rem;padding:10px 16px;border-bottom:1px solid #ffffff06;color:var(--text-dim)}
+.pii-type-badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:0.65rem;font-weight:700;letter-spacing:0.5px}
+.pii-type-badge.phone{background:var(--warn-dim);color:var(--warn)}
+.pii-type-badge.email{background:var(--danger-dim);color:var(--danger)}
+.pii-type-badge.ssn{background:var(--blue-dim);color:var(--blue)}
+.pii-type-badge.credit_card{background:var(--blue-dim);color:var(--blue)}
+.pii-type-badge.person_name{background:var(--purple-dim);color:var(--purple)}
+.pii-type-badge.address{background:var(--warn-dim);color:var(--warn)}
+.pii-type-badge.license_plate{background:var(--accent-dim);color:var(--accent)}
+
+.btn-reset{margin-top:24px;background:transparent;border:1px solid var(--border);color:var(--text-dim);border-radius:10px;padding:10px 20px;font-size:0.85rem;cursor:pointer;transition:all 0.2s}
+.btn-reset:hover{border-color:var(--text-dim);color:var(--text)}
+@media(max-width:768px){.app{padding:20px}.pipeline{grid-template-columns:repeat(2,1fr)}.stats{grid-template-columns:repeat(2,1fr)}.header{padding:16px 20px}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">
+    <div class="logo-icon">PL</div>
+    <div class="logo-text">Privacy<span>Lens</span></div>
+  </div>
+  <div class="header-right">
+    <a class="nav-link" href="/">Visual Redaction</a>
+    <div class="header-badge">POWERED BY FUNCTIONGEMMA + CACTUS</div>
+  </div>
+</div>
+
+<div class="app">
+  <div id="uploadSection">
+    <div class="fg-badge">FunctionGemma on-device AI plans and analyzes every step</div>
+    <div class="upload-zone" id="dropZone">
+      <div class="upload-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+      </div>
+      <div class="upload-title">Drop a video or audio file</div>
+      <div class="upload-sub">or <span id="browseLink">browse files</span> &middot; MP4, MOV, WAV, MP3, M4A</div>
+      <input type="file" id="fileInput" accept="video/*,audio/*">
+      <div id="fileChip" class="file-chip" style="display:none"></div>
+    </div>
+    <div class="instruction-bar" id="instructionBar">
+      <input type="text" class="instruction-input" id="instruction" placeholder='e.g. "scan for phone numbers and names"' value="Scan audio for any personal information">
+      <button class="btn-scan" id="btnScan">Scan Audio PII</button>
+    </div>
+  </div>
+
+  <div class="processing" id="processingSection">
+    <div class="pipeline">
+      <div class="pipeline-step" id="step1"><div class="step-num">STEP 01</div><div class="step-icon">&#x1F9E0;</div><div class="step-label">FG Plans</div><div class="step-stat" id="step1Stat"></div><div class="scan-bar"></div></div>
+      <div class="pipeline-step" id="step2"><div class="step-num">STEP 02</div><div class="step-icon">&#x1F399;</div><div class="step-label">Transcribe</div><div class="step-stat" id="step2Stat"></div><div class="scan-bar"></div></div>
+      <div class="pipeline-step" id="step3"><div class="step-num">STEP 03</div><div class="step-icon">&#x1F50D;</div><div class="step-label">Detect PII</div><div class="step-stat" id="step3Stat"></div><div class="scan-bar"></div></div>
+      <div class="pipeline-step" id="step4"><div class="step-num">STEP 04</div><div class="step-icon">&#x1F4CB;</div><div class="step-label">Report</div><div class="step-stat" id="step4Stat"></div><div class="scan-bar"></div></div>
+    </div>
+    <div class="log-panel" id="logPanel"></div>
+  </div>
+
+  <div class="results" id="resultsSection">
+    <div class="results-title">Audio PII <span>Report</span></div>
+    <div class="risk-banner" id="riskBanner">
+      <div class="risk-icon" id="riskIcon"></div>
+      <div class="risk-text">
+        <div class="risk-level" id="riskLevel"></div>
+        <div class="risk-reason" id="riskReason"></div>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat-card pii-count"><div class="stat-label">PII Found</div><div class="stat-value" id="statPii">0</div></div>
+      <div class="stat-card segments"><div class="stat-label">Segments</div><div class="stat-value" id="statSegments">0</div></div>
+      <div class="stat-card fg-calls"><div class="stat-label">FG Tool Calls</div><div class="stat-value" id="statFgCalls">0</div></div>
+      <div class="stat-card device"><div class="stat-label">Source</div><div class="stat-value" id="statSource" style="font-size:0.9rem">--</div></div>
+    </div>
+
+    <div id="transcriptSection" style="display:none">
+      <div class="section-title">Transcript (PII highlighted)</div>
+      <div class="transcript-panel" id="transcriptPanel"></div>
+    </div>
+
+    <div id="findingsSection" style="display:none">
+      <div class="section-title">PII Findings</div>
+      <div class="findings-table-wrap">
+        <table class="findings-table">
+          <thead><tr><th>Time</th><th>Type</th><th>Detected</th><th>Masked</th><th>Context</th></tr></thead>
+          <tbody id="findingsBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <button class="btn-reset" id="btnReset">Scan Another File</button>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+  var selectedFile = null;
+  var currentJobId = null;
+  var pollInterval = null;
+  var lastStep = 0;
+
+  var dropZone = document.getElementById('dropZone');
+  var fileInput = document.getElementById('fileInput');
+  var instructionBar = document.getElementById('instructionBar');
+  var fileChip = document.getElementById('fileChip');
+  var logPanel = document.getElementById('logPanel');
+
+  document.getElementById('browseLink').addEventListener('click', function(e) { e.stopPropagation(); fileInput.click(); });
+  dropZone.addEventListener('dragover', function(e) { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', function() { dropZone.classList.remove('dragover'); });
+  dropZone.addEventListener('drop', function(e) { e.preventDefault(); dropZone.classList.remove('dragover'); if (e.dataTransfer.files.length) selectFile(e.dataTransfer.files[0]); });
+  dropZone.addEventListener('click', function() { fileInput.click(); });
+  fileInput.addEventListener('change', function() { if (fileInput.files.length) selectFile(fileInput.files[0]); });
+  document.getElementById('btnScan').addEventListener('click', startScan);
+  document.getElementById('btnReset').addEventListener('click', resetApp);
+
+  function selectFile(file) {
+    selectedFile = file;
+    var sizeMB = (file.size / 1048576).toFixed(1);
+    fileChip.textContent = '';
+    var nameSpan = document.createElement('span');
+    nameSpan.textContent = file.name + ' (' + sizeMB + ' MB)';
+    var closeBtn = document.createElement('span');
+    closeBtn.className = 'x';
+    closeBtn.textContent = '\u00D7';
+    closeBtn.addEventListener('click', function(e) { e.stopPropagation(); clearFile(); });
+    fileChip.appendChild(nameSpan);
+    fileChip.appendChild(closeBtn);
+    fileChip.style.display = 'inline-flex';
+    instructionBar.classList.add('visible');
+  }
+
+  function clearFile() {
+    selectedFile = null;
+    fileChip.style.display = 'none';
+    instructionBar.classList.remove('visible');
+    fileInput.value = '';
+  }
+
+  function addLog(msg, cls) {
+    var now = new Date().toLocaleTimeString('en-US', {hour12: false});
+    var entry = document.createElement('div');
+    entry.className = 'log-entry';
+    var ts = document.createElement('span');
+    ts.style.color = 'var(--text-muted)';
+    ts.style.marginRight = '8px';
+    ts.textContent = '[' + now + ']';
+    var m = document.createElement('span');
+    m.style.color = cls === 'success' ? 'var(--accent)' : cls === 'detect' ? 'var(--danger)' : cls === 'purple' ? 'var(--purple)' : 'var(--text-dim)';
+    m.textContent = msg;
+    entry.appendChild(ts);
+    entry.appendChild(m);
+    logPanel.appendChild(entry);
+    logPanel.scrollTop = logPanel.scrollHeight;
+  }
+
+  function startScan() {
+    if (!selectedFile) return;
+    var instruction = document.getElementById('instruction').value;
+    document.getElementById('uploadSection').style.display = 'none';
+    document.getElementById('processingSection').classList.add('active');
+    logPanel.textContent = '';
+    lastStep = 0;
+    addLog('Uploading ' + selectedFile.name + '...', 'info');
+    var fd = new FormData();
+    fd.append('file', selectedFile);
+    fd.append('instruction', instruction);
+    fetch('/api/upload_audio', { method: 'POST', body: fd })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        currentJobId = data.job_id;
+        addLog('Job queued: ' + currentJobId, 'success');
+        pollInterval = setInterval(pollStatus, 1000);
+      })
+      .catch(function(e) { addLog('Upload failed: ' + e, 'warn'); });
+  }
+
+  function pollStatus() {
+    if (!currentJobId) return;
+    fetch('/api/status/' + currentJobId)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        for (var i = 1; i <= 4; i++) {
+          var el = document.getElementById('step' + i);
+          el.classList.remove('active', 'done');
+          if (data.step > i) el.classList.add('done');
+          else if (Math.floor(data.step) === i) el.classList.add('active');
+        }
+
+        if (data.step > lastStep) {
+          if (data.step >= 1 && lastStep < 1) {
+            addLog('FunctionGemma planning analysis pipeline...', 'purple');
+          }
+          if (data.step >= 2 && lastStep < 2) {
+            var planStr = (data.fg_plan || []).join(' -> ');
+            addLog('FG plan: ' + planStr + ' [' + (data.fg_source || '') + ']', 'purple');
+            document.getElementById('step1Stat').textContent = (data.fg_source || 'on-device');
+            addLog('Transcribing audio with Whisper...', 'info');
+          }
+          if (data.step >= 3 && lastStep < 3) {
+            addLog(data.transcript_segments + ' segments transcribed', 'success');
+            document.getElementById('step2Stat').textContent = data.transcript_segments + ' segments';
+            addLog('FunctionGemma analyzing for PII...', 'purple');
+          }
+          if (data.step >= 4 && lastStep < 4) {
+            addLog(data.audio_pii_count + ' PII items detected', data.audio_pii_count > 0 ? 'detect' : 'success');
+            document.getElementById('step3Stat').textContent = data.audio_pii_count + ' found';
+          }
+          lastStep = data.step;
+        }
+
+        if (data.status === 'complete') {
+          clearInterval(pollInterval);
+          document.getElementById('step4Stat').textContent = 'done';
+          addLog('Audio PII analysis complete!', 'success');
+          setTimeout(function() { showResults(data); }, 500);
+        }
+        if (data.status === 'error') {
+          clearInterval(pollInterval);
+          addLog('Error: ' + data.message, 'warn');
+        }
+      });
+  }
+
+  function showResults(data) {
+    document.getElementById('processingSection').classList.remove('active');
+    document.getElementById('processingSection').style.display = 'none';
+    document.getElementById('resultsSection').classList.add('active');
+
+    // Risk banner
+    var risk = data.audio_risk || {};
+    var level = risk.level || 'none';
+    var banner = document.getElementById('riskBanner');
+    banner.className = 'risk-banner ' + level;
+    var icons = {high: '\u26A0\uFE0F', medium: '\u26A0\uFE0F', low: '\u2705', none: '\u2705'};
+    document.getElementById('riskIcon').textContent = icons[level] || '';
+    document.getElementById('riskLevel').textContent = level.toUpperCase() + ' RISK';
+    document.getElementById('riskReason').textContent = risk.reason || '';
+
+    // Stats
+    document.getElementById('statPii').textContent = data.audio_pii_count || 0;
+    document.getElementById('statSegments').textContent = data.transcript_segments || 0;
+    document.getElementById('statFgCalls').textContent = (data.fg_plan || []).length;
+    document.getElementById('statSource').textContent = data.fg_source || 'on-device';
+
+    // Transcript with highlights
+    var transcript = data.transcript || [];
+    var findings = data.audio_findings || [];
+    if (transcript.length > 0) {
+      document.getElementById('transcriptSection').style.display = 'block';
+      var panel = document.getElementById('transcriptPanel');
+      panel.textContent = '';
+
+      transcript.forEach(function(seg) {
+        var line = document.createElement('div');
+        line.className = 'transcript-line';
+        var timeEl = document.createElement('div');
+        timeEl.className = 'transcript-time';
+        timeEl.textContent = seg.time;
+        var textEl = document.createElement('div');
+        textEl.className = 'transcript-text';
+
+        // Highlight PII in this segment
+        var text = seg.text;
+        var segFindings = findings.filter(function(f) { return f.start === seg.start; });
+        if (segFindings.length > 0) {
+          segFindings.forEach(function(f) {
+            var idx = text.toLowerCase().indexOf(f.matched_text.toLowerCase());
+            if (idx >= 0) {
+              var before = text.substring(0, idx);
+              var match = text.substring(idx, idx + f.matched_text.length);
+              var after = text.substring(idx + f.matched_text.length);
+              text = before + '\x00HIGHLIGHT_START\x00' + match + '\x00HIGHLIGHT_END\x00' + after;
+            }
+          });
+          // Build with highlights
+          var parts = text.split('\x00HIGHLIGHT_START\x00');
+          parts.forEach(function(part, pi) {
+            if (pi === 0) {
+              if (part) textEl.appendChild(document.createTextNode(part));
+            } else {
+              var inner = part.split('\x00HIGHLIGHT_END\x00');
+              var hl = document.createElement('span');
+              hl.className = 'pii-highlight';
+              hl.textContent = inner[0];
+              textEl.appendChild(hl);
+              if (inner[1]) textEl.appendChild(document.createTextNode(inner[1]));
+            }
+          });
+        } else {
+          textEl.textContent = text;
+        }
+
+        line.appendChild(timeEl);
+        line.appendChild(textEl);
+        panel.appendChild(line);
+      });
+    }
+
+    // Findings table
+    if (findings.length > 0) {
+      document.getElementById('findingsSection').style.display = 'block';
+      var tbody = document.getElementById('findingsBody');
+      tbody.textContent = '';
+      findings.forEach(function(f) {
+        var tr = document.createElement('tr');
+        var tdTime = document.createElement('td');
+        tdTime.textContent = f.timestamp;
+        tdTime.style.color = 'var(--purple)';
+        var tdType = document.createElement('td');
+        var badge = document.createElement('span');
+        badge.className = 'pii-type-badge ' + f.pii_type;
+        badge.textContent = f.pii_type.toUpperCase().replace('_', ' ');
+        tdType.appendChild(badge);
+        var tdDetected = document.createElement('td');
+        tdDetected.textContent = f.matched_text;
+        tdDetected.style.color = 'var(--danger)';
+        var tdMasked = document.createElement('td');
+        tdMasked.textContent = f.masked;
+        tdMasked.style.color = 'var(--accent)';
+        var tdContext = document.createElement('td');
+        tdContext.textContent = f.context.length > 60 ? f.context.substring(0, 60) + '...' : f.context;
+        tr.appendChild(tdTime);
+        tr.appendChild(tdType);
+        tr.appendChild(tdDetected);
+        tr.appendChild(tdMasked);
+        tr.appendChild(tdContext);
+        tbody.appendChild(tr);
+      });
+    }
+  }
+
+  function resetApp() {
+    currentJobId = null; lastStep = 0; selectedFile = null;
+    document.getElementById('resultsSection').classList.remove('active');
+    document.getElementById('resultsSection').style.display = '';
+    document.getElementById('processingSection').style.display = '';
+    document.getElementById('processingSection').classList.remove('active');
+    document.getElementById('uploadSection').style.display = '';
+    document.getElementById('transcriptSection').style.display = 'none';
+    document.getElementById('findingsSection').style.display = 'none';
+    clearFile();
+    for (var i = 1; i <= 4; i++) {
+      document.getElementById('step' + i).classList.remove('active', 'done');
+      document.getElementById('step' + i + 'Stat').textContent = '';
+    }
+  }
+})();
+</script>
+</body>
+</html>

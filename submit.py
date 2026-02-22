@@ -28,9 +28,11 @@ def submit(team, location):
                 timeout=15,
             )
     except requests.exceptions.ConnectionError:
+        print(request.error)
         print("The Leaderboard is not accepting submissions at this time.")
         return
     except requests.exceptions.Timeout:
+        print(request.error)
         print("The Leaderboard is not accepting submissions at this time.")
         return
 
